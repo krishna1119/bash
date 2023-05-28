@@ -1,0 +1,138 @@
+#!/usr/bin/bash
+
+set +m
+rosmasteripget () {                                       #to set the ros master ip
+
+export ROS_MASTER_URI=http://$1:11311  
+echo "ROS master is $ROS_MASTER_URI"
+}
+
+rosipget() {                                                      #to set the rosip
+export ROS_IP=$(hostname -I | awk '{ print $1}' )
+echo "ROS IP is $ROS_IP"
+}
+
+processidentifier () {                                               #to get process id to kill
+
+  ps -aux | grep roscore | grep -v grep 
+}
+
+
+
+source ~/catkin_ws/devel/setup.bash
+hostget=$(hostname)
+ipaddr=$(hostname -I | awk '{ print $1}' )
+
+
+
+if [ "$1" = "--no-core" -o "$1" = "-nc" ];  then                                  #no core operations
+ array=($(ip addr | grep mtu | awk '{print $2}' |  sed 's/.$//'))
+
+ no=${#array[@]}
+
+
+ echo "Listing out interfaces"
+ j=1
+ for i in "${array[@]}"
+ do
+  echo $j")" $i 
+  ((j++))
+ done
+
+ selopt=0
+ read -p "enter the option: " selopt
+
+ while [ $selopt -gt $no ]
+ do
+ echo "invalid entry"
+ read -p "Enter the option: " selopt
+ done
+ ((selopt-=1))
+  
+ if [ $selopt -le $no ]
+ then
+ IFS="/"                                                                 #getting the subnet mask
+ ipdiv=($(ip addr | grep -w ${array[$selopt]} | grep inet | awk '{ print $2}'))
+ ipget=${ipdiv[0]}                                                  #ip address is in ipget now
+ export ROS_IP=$ipget 
+
+
+ case ${ipdiv[1]} in
+
+ 8) # subnet mask is from the first thing
+#echo "found 8"
+
+ for  i in {1..3}
+ do 
+ ipdiv[0]=${ipdiv[0]%.*}
+ done
+ #echo ${ipdiv[0]}
+
+
+ read -p "3 ids to be inputted separated by a . :"  iprest
+ ipdiv[0]+=.
+ ipdiv[0]+=$iprest
+ echo inputted IP is : ${ipdiv[0]}
+
+ ;;
+
+ 16) # subnet mask is from the seond thing
+ #echo " found 16"
+
+ for  i in {1..2}
+ do 
+ ipdiv[0]=${ipdiv[0]%.*}
+ done
+ #echo ${ipdiv[0]}
+
+ read -p "2 ids to be inputted separated by a . :"  iprest
+ ipdiv[0]+=.
+ ipdiv[0]+=$iprest
+ echo Inputted IP is : ${ipdiv[0]}
+
+
+ ;;
+
+ 24) #subnet mask is from the third thing
+#echo "found 24"
+
+ ipdiv[0]=${ipdiv[0]%.*}
+ echo ${ipdiv[0]}
+ read -p "1 id  to be inputted separated by a . :"  iprest
+ ipdiv[0]+=.
+ ipdiv[0]+=$iprest
+ echo Inputted IP is : ${ipdiv[0]}
+
+ ;;
+
+ 32) # subnet mask is from the 4th thing
+ #echo "found 32"
+ echo Inputted IP is : ${ipdiv[0]}
+ ;;
+
+ esac
+ fi
+ rosmasteripget "${ipdiv[0]}"
+ echo "ROS IP is $ROS_IP"
+ 
+ 
+else
+ rosipget
+ rosmasteripget "$hostget"
+ 
+ if processidentifier  > /dev/null
+  then
+  echo "Master is already running"
+  echo "Killing the existing master"
+  killall roscore
+  echo "Starting ROS master here"
+  roscore  >/dev/null 2> errortxt.txt &
+  
+  else
+  echo "ROS IS STARTING"
+  roscore  >/dev/null 2> errortxt.txt &
+  fi
+
+ fi
+
+
